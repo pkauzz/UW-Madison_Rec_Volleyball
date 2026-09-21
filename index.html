@@ -211,6 +211,20 @@
   Signing up is a promise to show up, not a reservation. Rec Well controls the courts.</p>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+  /* ===== YOUR FIREBASE PROJECT ===== */
+  var firebaseConfig = {
+    apiKey: "AIzaSyA_NXDnutEoF1ZEKIonSJWThRUx2y1MT8Q",
+    authDomain: "uw-madison-rec-volleyball.firebaseapp.com",
+    projectId: "uw-madison-rec-volleyball",
+    storageBucket: "uw-madison-rec-volleyball.firebasestorage.app",
+    messagingSenderId: "796129222472",
+    appId: "1:796129222472:web:4d7742142fbfde72a7dd7d"
+  };
+  /* ================================= */
+</script>
 <script>
 (function(){
   "use strict";
@@ -527,9 +541,14 @@
     el("f-party").innerHTML=po;
     renderCourts(); buildPostForm(); render();
 
-    db=await claude.use("db");
-    if(!db){
-      el("warn").innerHTML='<div class="warn">Sign-ups can\u2019t load in this view, so the board is read-only.</div>';
+    try{
+      if(typeof firebase==="undefined") throw new Error("sdk");
+      firebase.initializeApp(firebaseConfig);
+      db=firebase.firestore();
+    }catch(err){
+      db=null;
+      el("warn").innerHTML='<div class="warn">Can\u2019t reach the database, so the board is read-only. '+
+        'Check your connection and reload.</div>';
       canWrite=false; loaded=true; render(); return;
     }
     db.collection("signups").limit(MAX_SIGNUPS).onSnapshot(function(snap){
@@ -544,13 +563,18 @@
     sweep();
   }
 
+  // Clear out signups from days gone by. Whoever opens the page first
+  // after six hours does the tidying; everyone else skips it.
   async function sweep(){
     try{
-      const lease=await db.doc("meta/sweep").acquire({holder:myId,ttlMs:6*60*60*1000});
-      if(!lease||!lease.acquired) return;
+      const ref=db.doc("meta/sweep");
+      const snap=await ref.get();
+      const last=(snap.exists && (snap.data()||{}).at) || 0;
+      if(Date.now()-last < 6*60*60*1000) return;
+      await ref.set({at:Date.now()});
       const cutoff=todayKey(new Date(Date.now()-3*86400000));
-      const snap=await db.collection("signups").where("date","<",cutoff).limit(40).get();
-      for(const d of snap.docs) await db.doc("signups/"+d.id).delete();
+      const q=await db.collection("signups").where("date","<",cutoff).limit(40).get();
+      for(const d of q.docs) await db.doc("signups/"+d.id).delete();
     }catch(e){}
   }
 
@@ -660,8 +684,9 @@
       msg.textContent="You\u2019re on the board.";
       setTimeout(function(){ if(msg.textContent==="You\u2019re on the board.") msg.textContent=""; },3000);
     }catch(err){
-      msg.textContent=(err&&err.code==="quota_exceeded")
-        ? "The board is full. Old days need clearing." : "That didn\u2019t save. Try again.";
+      msg.textContent=(err&&err.code==="permission-denied")
+        ? "The database is turned off right now. Ask whoever set this up."
+        : "That didn\u2019t save. Try again.";
     }finally{ btn.disabled=false; }
   }
 
