@@ -96,7 +96,7 @@
   .status.need{color:var(--red)} .status.go{color:var(--green)} .status.full{color:var(--muted)}
   .hours{margin:2px 0 12px;border-top:1px solid var(--line)}
   .hr{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)}
-  .hr .t{font-family:Archivo,sans-serif;font-weight:700;font-size:13px;width:82px;flex:none}
+  .hr .t{font-family:Archivo,sans-serif;font-weight:700;font-size:12.5px;min-width:132px;white-space:nowrap;flex:none}
   .hr .bar{flex:1;height:8px;background:var(--slot-empty);border-radius:2px;overflow:hidden;min-width:30px}
   .hr .bar i{display:block;height:100%;background:var(--ink)}
   .hr .n{font-family:Archivo,sans-serif;font-weight:800;font-size:15px;width:26px;text-align:right;flex:none}
@@ -144,6 +144,7 @@
   .foot{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
   .slot{transition:fill .18s ease, r .18s ease}
   @media (prefers-reduced-motion: reduce){ .slot{transition:none} }
+  @media (max-width:480px){ .hr .s{display:none} }
   @media (max-width:420px){ .grid{grid-template-columns:1fr} .court svg{width:108px;height:54px} }
 </style>
 </head>
@@ -156,10 +157,9 @@
   </header>
 
   <div class="panel" id="gate">
-    <p style="margin:0 0 12px">Sign in with your UW Google account to see the board and sign up. Only
-    <b>@wisc.edu</b> addresses can get in, which keeps the board to actual students.</p>
+    <p style="margin:0 0 12px">Sign in with any Google account to see the board and sign up. Students and Rec Well members are both welcome.</p>
     <div class="actions">
-      <button class="btn" id="signin">Sign in with UW Google</button>
+      <button class="btn" id="signin">Sign in with Google</button>
       <span id="gate-msg" style="font-size:13px;color:var(--muted)"></span>
     </div>
   </div>
@@ -188,7 +188,7 @@
   </div>
   <p class="sublede" id="courts-lede"></p>
   <div id="courts"></div>
-  <div style="margin-top:12px"><button class="link" id="imp-toggle">Update the court list</button></div>
+  <div style="margin-top:12px" hidden><button class="link" id="imp-toggle">Update the court list</button></div>
 
   <div class="panel" id="imp" hidden>
     <p>Open the volleyball schedule, select the day&rsquo;s rows, and paste them here. It covers the Nick and Bakke together.</p>
@@ -269,7 +269,23 @@
   };
   let myId = null;                       // the signed-in Google account's uid
   let myName = LS.get("openrec.name") || "";
-  let auth = null, dataStarted = false, signingOut = false;
+  let auth = null, dataStarted = false, signingOut = false, isAdmin = false;
+  // SHA-256 of the one account allowed to edit court times.
+  const ADMIN_HASH = "47d1d620165fa98455a8293ff852bdc970714bea3ed7ce583ec7982ddb1a436a";
+  async function sha256(text){
+    try{
+      const buf=await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+    }catch(e){ return ""; }
+  }
+  function applyRole(){
+    el("imp-toggle").parentElement.hidden=!isAdmin;
+    if(!isAdmin) el("imp").hidden=true;
+    el("post-none").innerHTML = isAdmin
+      ? '<b>No open courts listed</b>Add the court list for this day and the options will appear here.'
+      : '<b>Court times aren\u2019t up yet</b>Check back later, or try another day with the arrows above.';
+    renderCourts();
+  }
 
   // "Parker Kauzlarich" -> "Parker K"
   function shortName(full){
@@ -290,8 +306,13 @@
     return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0"); }
   function parseKey(k){ const p=String(k).split("-");
     return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); }
-  function clock(min){ let h=Math.floor(min/60),m=min%60; const ap=h>=12?"p":"a";
-    h=h%12; if(h===0)h=12; return h+(m?":"+String(m).padStart(2,"0"):"")+ap; }
+  function clock(min){
+    const t=((min%1440)+1440)%1440;            // 1440 (midnight) wraps to 0
+    let h=Math.floor(t/60); const m=t%60;
+    const ap=h>=12?"PM":"AM";
+    h=h%12; if(h===0) h=12;
+    return h+":"+String(m).padStart(2,"0")+" "+ap;
+  }
   function dayLabel(key){ const d=parseKey(key), now=new Date();
     const diff=Math.round((d-new Date(now.getFullYear(),now.getMonth(),now.getDate()))/86400000);
     if(diff===0)return "Today"; if(diff===1)return "Tomorrow";
@@ -413,21 +434,22 @@
 
     if(!blocks.length){
       lede.textContent=stamp;
-      box.innerHTML='<div class="empty"><b>No court list yet</b>'+
-        'Paste this day\u2019s facility schedule below and everyone on the board sees it.</div>';
+      box.innerHTML = isAdmin
+        ? '<div class="empty"><b>No court list yet</b>Paste this day\u2019s schedule below and everyone sees it.</div>'
+        : '<div class="empty"><b>Court times aren\u2019t up yet</b>They usually go up each morning.</div>';
       return;
     }
     const done=blocks.filter(function(b){ return isToday && b.end<=nm; }).length;
     const who=Object.keys(courtDocs).map(function(k){ return courtDocs[k].updatedByName; })
-      .filter(Boolean);
+      .filter(function(x,i,a){ return x && a.indexOf(x)===i; });
     lede.innerHTML=esc(stamp)+(who.length?(" \u00b7 added by "+esc(who.join(", "))):"")+
       (done===blocks.length?' \u00b7 <span style="color:var(--red)">every slot has finished</span>':"");
     box.innerHTML=blocks.map(function(b){
       const v=VENUES[b.venue]||VENUES.nick;
       const past=isToday && b.end<=nm;
       return '<div class="slotrow'+(past?" past":"")+'">'+
-        '<span class="chip">'+esc(v.short)+' '+esc(b.court)+'</span>'+
-        '<span class="slotmain"><b>'+clock(b.start)+'\u2013'+clock(b.end)+'</b>'+
+        '<span class="chip">'+esc(v.short)+' Court '+esc(b.court)+'</span>'+
+        '<span class="slotmain"><b>'+clock(b.start)+" - "+clock(b.end)+'</b>'+
           (b.label?'<i>'+esc(b.label)+'</i>':'')+'</span>'+
         (past?'<span style="font-size:12px;color:var(--muted);flex:none">finished</span>'
              :'<button class="btn ghost sm" data-use="'+esc(blockId(b))+'">Use this</button>')+
@@ -496,7 +518,7 @@
     }
     if(!cur) cur=g.live[0];
     const n=cur?cur.n:0, st=playStyle(n);
-    const when=(running?"Right now, ":"First hour, ")+clock(cur.a)+"\u2013"+clock(cur.b);
+    const when=(running?"Right now, ":"First hour, ")+clock(cur.a)+" - "+clock(cur.b);
     let status,cls;
     if(n<MIN_PLAYERS){ status=(MIN_PLAYERS-n)+" more needed this hour"; cls="need"; }
     else if(n<FULL_PLAYERS){ status="Game on. Room for "+(FULL_PLAYERS-n)+" more"; cls="go"; }
@@ -505,14 +527,14 @@
     if(g.peak>n && g.live.length){
       let ph=g.live[0];
       g.live.forEach(function(x){ if(x.n>ph.n) ph=x; });
-      peakLine='<p class="peak">Busiest at '+clock(ph.a)+'\u2013'+clock(ph.b)+' with '+ph.n+'</p>';
+      peakLine='<p class="peak">Busiest at '+clock(ph.a)+" - "+clock(ph.b)+' with '+ph.n+'</p>';
     }
 
     const top=Math.max(g.peak,1);
     const hours=g.hours.map(function(x){
       const sty=x.n?playStyle(x.n).t:"\u2014";
       return '<div class="hr'+(x.past?" past":"")+'">'+
-        '<span class="t">'+clock(x.a)+'\u2013'+clock(x.b)+'</span>'+
+        '<span class="t">'+clock(x.a)+" - "+clock(x.b)+'</span>'+
         '<span class="bar"><i style="width:'+Math.round(100*Math.min(x.n,top)/top)+'%"></i></span>'+
         '<span class="n">'+x.n+'</span><span class="s">'+esc(sty)+'</span></div>';
     }).join("");
@@ -520,7 +542,7 @@
     const names=g.rows.slice().sort(function(a,b){ return a.startMin-b.startMin; })
       .map(function(r){
         const extra=(Number(r.party)||1)>1?(" +"+((Number(r.party)||1)-1)):"";
-        const nm=esc(r.name||"Someone")+extra+" ("+clock(r.startMin)+"\u2013"+clock(r.endMin)+")";
+        const nm=esc(r.name||"Someone")+extra+" ("+clock(r.startMin)+" - "+clock(r.endMin)+")";
         return r.by===myId?'<span class="me">'+nm+'</span>':nm;
       }).join(", ");
 
@@ -595,13 +617,9 @@
         return;
       }
       const email=String(u.email||"").toLowerCase();
-      if(!/@wisc\.edu$/.test(email)){
-        signingOut=true;
-        el("gate-msg").textContent="That account isn\u2019t a wisc.edu address. Try again with your UW account.";
-        auth.signOut();
-        return;
-      }
       myId=u.uid;
+      isAdmin=false; applyRole();
+      sha256(email).then(function(h){ isAdmin=(h===ADMIN_HASH); applyRole(); });
       if(!myName) myName=shortName(u.displayName||email.split("@")[0]);
       el("me").value=myName; LS.set("openrec.name",myName);
       el("gate").hidden=true; el("app").hidden=false;
@@ -629,7 +647,7 @@
   function signIn(){
     if(!auth) return;
     const provider=new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({hd:"wisc.edu"});
+    provider.setCustomParameters({prompt:"select_account"});
     el("gate-msg").textContent="Opening Google\u2026";
     auth.signInWithPopup(provider).then(function(){ el("gate-msg").textContent=""; })
       .catch(function(e){
@@ -699,7 +717,7 @@
     const prev=el("f-slot").value;
     el("f-slot").innerHTML=slots.map(function(b){
       const v=VENUES[b.venue]||VENUES.nick;
-      return opt(blockId(b), v.short+" court "+b.court+" \u00b7 "+clock(b.start)+"\u2013"+clock(b.end),
+      return opt(blockId(b), v.short+" Court "+b.court+" \u00b7 "+clock(b.start)+" - "+clock(b.end),
                  blockId(b)===prev);
     }).join("");
     if(el("f-slot").selectedIndex<0) el("f-slot").selectedIndex=0;
@@ -772,7 +790,7 @@
       '. Check them before saving.</p>'+
       list.map(function(b,i){ const v=VENUES[b.venue]||VENUES.nick;
         return '<div class="slotrow"><span class="chip">'+esc(v.short)+' '+esc(b.court)+'</span>'+
-          '<span class="slotmain"><b>'+clock(b.start)+'\u2013'+clock(b.end)+'</b>'+
+          '<span class="slotmain"><b>'+clock(b.start)+" - "+clock(b.end)+'</b>'+
           (b.label?'<i>'+esc(b.label)+'</i>':'')+'</span>'+
           '<button class="link" data-drop="'+i+'">drop</button></div>'; }).join("")+
       '<div class="actions" style="margin-top:12px"><button class="btn" id="imp-save">Save these courts</button></div>';
