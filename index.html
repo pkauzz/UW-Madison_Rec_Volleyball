@@ -158,6 +158,12 @@
 
   <div class="panel" id="gate">
     <p style="margin:0 0 12px">Sign in with any Google account to see the board and sign up. Students and Rec Well members are both welcome.</p>
+    <div class="warn" id="inapp" hidden>
+      You opened this inside another app, and Google won&rsquo;t allow sign-in here.
+      Tap the <b>&middot;&middot;&middot;</b> menu and choose to open in your browser, or copy the link into Safari or Chrome.
+      <div style="margin-top:9px"><button class="btn ghost sm" id="copylink">Copy link</button>
+      <span id="copy-msg" style="font-size:12px;color:var(--muted);margin-left:6px"></span></div>
+    </div>
     <div class="actions">
       <button class="btn" id="signin">Sign in with Google</button>
       <span id="gate-msg" style="font-size:13px;color:var(--muted)"></span>
@@ -246,7 +252,7 @@
   /* ===== YOUR FIREBASE PROJECT ===== */
   var firebaseConfig = {
     apiKey: "AIzaSyA_NXDnutEoF1ZEKIonSJWThRUx2y1MT8Q",
-    authDomain: "uw-madison-rec-volleyball.firebaseapp.com",
+    authDomain: "uw-madison-rec-volleyball.vercel.app",   // your Vercel address, same as the other uw-madison-rec-volleyball.vercel.app spots
     projectId: "uw-madison-rec-volleyball",
     storageBucket: "uw-madison-rec-volleyball.firebasestorage.app",
     messagingSenderId: "796129222472",
@@ -609,6 +615,8 @@
       el("gate-msg").textContent="Can\u2019t reach the sign-in service. Check your connection and reload.";
       return;
     }
+    auth.getRedirectResult().catch(signInError);
+    if(inAppBrowser()) el("inapp").hidden=false;
     auth.onAuthStateChanged(function(u){
       if(!u){
         if(!signingOut) el("gate-msg").textContent="";
@@ -644,16 +652,35 @@
     sweep();
   }
 
+  function inAppBrowser(){
+    return /Instagram|FBAN|FBAV|Snapchat|musical_ly|TikTok|Line\//i.test(navigator.userAgent||"");
+  }
+  function onPhone(){ return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent||""); }
+  function signInError(e){
+    const code=(e&&e.code)||"";
+    el("gate-msg").textContent =
+      code==="auth/popup-blocked" ? "Your browser blocked the sign-in window. Allow popups and try again." :
+      code==="auth/popup-closed-by-user" ? "" :
+      code==="auth/web-storage-unsupported" ? "This browser is blocking storage. Try Safari or Chrome outside private mode." :
+      "Sign-in didn\u2019t go through. Try again, or open the link in Safari or Chrome.";
+  }
   function signIn(){
     if(!auth) return;
     const provider=new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({prompt:"select_account"});
+    if(onPhone()){
+      el("gate-msg").textContent="Taking you to Google\u2026";
+      auth.signInWithRedirect(provider).catch(signInError);
+      return;
+    }
     el("gate-msg").textContent="Opening Google\u2026";
     auth.signInWithPopup(provider).then(function(){ el("gate-msg").textContent=""; })
       .catch(function(e){
-        el("gate-msg").textContent=(e&&e.code==="auth/popup-blocked")
-          ? "Your browser blocked the popup. Allow popups for this site and try again."
-          : "Sign-in didn\u2019t go through. Try again.";
+        const code=(e&&e.code)||"";
+        if(code==="auth/popup-blocked"||code==="auth/operation-not-supported-in-this-environment"){
+          auth.signInWithRedirect(provider).catch(signInError); return;
+        }
+        signInError(e);
       });
   }
 
@@ -857,6 +884,13 @@
     if(e.target.id==="imp-save"){ saveBlocks(); return; }
   });
   el("signin").addEventListener("click",signIn);
+  el("copylink").addEventListener("click",function(){
+    const url=location.href.split("#")[0];
+    const done=function(){ el("copy-msg").textContent="Copied. Paste it into Safari or Chrome."; };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done,function(){ el("copy-msg").textContent=url; });
+    } else { el("copy-msg").textContent=url; }
+  });
   el("signout").addEventListener("click",function(){
     signingOut=true;
     if(auth) auth.signOut();
