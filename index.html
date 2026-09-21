@@ -4,6 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Open Rec Volleyball — who's playing</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%231C1B19'/%3E%3Crect x='14' y='30' width='72' height='40' rx='3' fill='none' stroke='%23E3D9C6' stroke-width='4'/%3E%3Cline x1='50' y1='26' x2='50' y2='74' stroke='%23E3D9C6' stroke-width='4'/%3E%3Ccircle cx='32' cy='42' r='6' fill='%23FBF9F6'/%3E%3Ccircle cx='32' cy='58' r='6' fill='%23FBF9F6'/%3E%3Ccircle cx='68' cy='42' r='6' fill='%23C5050C'/%3E%3Ccircle cx='68' cy='58' r='6' fill='%23FBF9F6'/%3E%3C/svg%3E">
+<meta name="description" content="Pickup volleyball sign-ups for open rec at the Nick and the Bakke. See who is playing before you walk over.">
+<!-- ===== Replace uw-madison-rec-volleyball.vercel.app with your Vercel address, e.g. openrec-volleyball.vercel.app ===== -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Who&#39;s playing tonight?">
+<meta property="og:description" content="Pickup volleyball at the Nick and the Bakke. Sign up, see if there are enough people for a real game.">
+<meta property="og:url" content="https://uw-madison-rec-volleyball.vercel.app/">
+<meta property="og:image" content="https://uw-madison-rec-volleyball.vercel.app/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Who&#39;s playing tonight?">
+<meta name="twitter:description" content="Pickup volleyball at the Nick and the Bakke.">
+<meta name="twitter:image" content="https://uw-madison-rec-volleyball.vercel.app/preview.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -38,6 +50,7 @@
     font-size:clamp(32px,9vw,48px);line-height:.95;letter-spacing:-.025em;margin:0}
   .mast p{margin:8px 0 0;color:var(--muted);font-size:14px;max-width:48ch}
 
+  .idbar{display:flex;align-items:center;gap:12px;margin:18px 0 0;flex-wrap:wrap}
   .namefield{display:flex;align-items:center;gap:8px;margin:18px 0 0;
     border:1px solid var(--line);border-radius:3px;background:var(--raise);padding:0 10px}
   .namefield span{color:var(--muted);font-size:13px;white-space:nowrap}
@@ -142,10 +155,23 @@
     <p>Pickup volleyball at the Nick and the Bakke. Put your name down, see whether it's enough for a real game before you walk over.</p>
   </header>
 
-  <label class="namefield">
-    <span>You are</span>
-    <input id="me" type="text" placeholder="first name + last initial" maxlength="28" autocomplete="off">
-  </label>
+  <div class="panel" id="gate">
+    <p style="margin:0 0 12px">Sign in with your UW Google account to see the board and sign up. Only
+    <b>@wisc.edu</b> addresses can get in, which keeps the board to actual students.</p>
+    <div class="actions">
+      <button class="btn" id="signin">Sign in with UW Google</button>
+      <span id="gate-msg" style="font-size:13px;color:var(--muted)"></span>
+    </div>
+  </div>
+
+  <div id="app" hidden>
+  <div class="idbar">
+    <label class="namefield" style="flex:1 1 200px;margin:0">
+      <span>Shown as</span>
+      <input id="me" type="text" placeholder="first name + last initial" maxlength="28" autocomplete="off">
+    </label>
+    <button class="link" id="signout">Sign out</button>
+  </div>
 
   <div id="warn"></div>
 
@@ -206,6 +232,8 @@
     </div>
   </div>
 
+  </div>
+
   <p class="foot">All skill levels are welcome here. If you have never played, come anyway. Someone will get you in a rotation.<br><br>
   Expect more people than the board shows. Plenty of players never see this page and just walk on, so a court listing four signups can easily have twelve people on it. Treat the numbers as a floor, not a count.<br><br>
   Signing up is a promise to show up, not a reservation. Rec Well controls the courts.</p>
@@ -213,6 +241,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
   /* ===== YOUR FIREBASE PROJECT ===== */
   var firebaseConfig = {
@@ -232,15 +261,23 @@
   const MIN_PLAYERS = 8, FULL_PLAYERS = 12, ROWS = [3,3], SEATS = 12;
   const VENUES = { nick:{label:"the Nick",short:"Nick",courts:8},
                    bakke:{label:"the Bakke",short:"Bakke",courts:8} };
-  const MAX_SIGNUPS = 400, MAX_BLOCKS = 60;
+  const MAX_SIGNUPS = 1000, MAX_BLOCKS = 60;
 
   const LS = {
     get(k){ try{return localStorage.getItem(k);}catch(e){return null;} },
     set(k,v){ try{localStorage.setItem(k,v);}catch(e){} }
   };
-  let myId = LS.get("openrec.id");
-  if(!myId){ myId = "p"+Math.random().toString(36).slice(2,11); LS.set("openrec.id",myId); }
+  let myId = null;                       // the signed-in Google account's uid
   let myName = LS.get("openrec.name") || "";
+  let auth = null, dataStarted = false, signingOut = false;
+
+  // "Parker Kauzlarich" -> "Parker K"
+  function shortName(full){
+    const parts=String(full||"").trim().split(/\s+/).filter(Boolean);
+    if(!parts.length) return "";
+    if(parts.length===1) return parts[0].slice(0,28);
+    return (parts[0]+" "+parts[parts.length-1][0]).slice(0,28);
+  }
 
   let db=null, canWrite=true, loaded=false, pending=false, draftBlocks=null;
   const signups=new Map();
@@ -545,22 +582,61 @@
       if(typeof firebase==="undefined") throw new Error("sdk");
       firebase.initializeApp(firebaseConfig);
       db=firebase.firestore();
+      auth=firebase.auth();
     }catch(err){
-      db=null;
-      el("warn").innerHTML='<div class="warn">Can\u2019t reach the database, so the board is read-only. '+
-        'Check your connection and reload.</div>';
-      canWrite=false; loaded=true; render(); return;
+      el("gate-msg").textContent="Can\u2019t reach the sign-in service. Check your connection and reload.";
+      return;
     }
-    db.collection("signups").limit(MAX_SIGNUPS).onSnapshot(function(snap){
-      signups.clear();
-      snap.docs.forEach(function(d){ const v=d.data()||{};
-        if(typeof v.date==="string" && typeof v.startMin==="number") signups.set(d.id,v); });
-      loaded=true; queueRender();
-    }, function(){
-      el("warn").innerHTML='<div class="warn">The board stopped updating. Reload to reconnect.</div>';
+    auth.onAuthStateChanged(function(u){
+      if(!u){
+        if(!signingOut) el("gate-msg").textContent="";
+        signingOut=false;
+        el("gate").hidden=false; el("app").hidden=true;
+        return;
+      }
+      const email=String(u.email||"").toLowerCase();
+      if(!/@wisc\.edu$/.test(email)){
+        signingOut=true;
+        el("gate-msg").textContent="That account isn\u2019t a wisc.edu address. Try again with your UW account.";
+        auth.signOut();
+        return;
+      }
+      myId=u.uid;
+      if(!myName) myName=shortName(u.displayName||email.split("@")[0]);
+      el("me").value=myName; LS.set("openrec.name",myName);
+      el("gate").hidden=true; el("app").hidden=false;
+      startData();
     });
+  }
+
+  // Runs once, after a valid sign-in.
+  function startData(){
+    if(dataStarted) return;
+    dataStarted=true;
+    db.collection("signups").where("date",">=",todayKey()).limit(MAX_SIGNUPS)
+      .onSnapshot(function(snap){
+        signups.clear();
+        snap.docs.forEach(function(d){ const v=d.data()||{};
+          if(typeof v.date==="string" && typeof v.startMin==="number") signups.set(d.id,v); });
+        loaded=true; queueRender();
+      }, function(){
+        el("warn").innerHTML='<div class="warn">The board stopped updating. Reload to reconnect.</div>';
+      });
     goToDate(panelDate);
     sweep();
+  }
+
+  function signIn(){
+    if(!auth) return;
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({hd:"wisc.edu"});
+    el("gate-msg").textContent="Opening Google\u2026";
+    auth.signInWithPopup(provider).then(function(){ el("gate-msg").textContent=""; })
+      .catch(function(e){
+        el("gate-msg").textContent=(e&&e.code==="auth/popup-blocked")
+          ? "Your browser blocked the popup. Allow popups for this site and try again."
+          : "Sign-in didn\u2019t go through. Try again.";
+      });
   }
 
   // Clear out signups from days gone by. Whoever opens the page first
@@ -761,6 +837,11 @@
       return;
     }
     if(e.target.id==="imp-save"){ saveBlocks(); return; }
+  });
+  el("signin").addEventListener("click",signIn);
+  el("signout").addEventListener("click",function(){
+    signingOut=true;
+    if(auth) auth.signOut();
   });
   el("me").addEventListener("change",function(){ myName=el("me").value.trim(); LS.set("openrec.name",myName); });
   el("d-prev").addEventListener("click",function(){ shiftDate(-1); });
