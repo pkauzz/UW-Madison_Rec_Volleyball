@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Open Rec Volleyball — who's playing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FBF9F6; --raise:#FFFFFF; --line:#E3D9C6; --ink:#1C1B19;
+    --muted:#6E6A63; --red:#C5050C; --green:#1F6B3A; --slot-empty:#DCD3C2;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    color-scheme:light dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#17161A; --raise:#1F1E23; --line:#35333B; --ink:#F2F0EC;
+      --muted:#9C978E; --red:#FF5F5F; --green:#57C98B; --slot-empty:#3D3B43;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#17161A; --raise:#1F1E23; --line:#35333B; --ink:#F2F0EC;
+    --muted:#9C978E; --red:#FF5F5F; --green:#57C98B; --slot-empty:#3D3B43;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:15px;line-height:1.5}
+  .wrap{max-width:620px;margin:0 auto;padding:28px 20px 80px}
+
+  .mast{border-bottom:2px solid var(--ink);padding-bottom:14px}
+  .mast h1{font-family:Archivo,sans-serif;font-weight:800;
+    font-size:clamp(32px,9vw,48px);line-height:.95;letter-spacing:-.025em;margin:0}
+  .mast p{margin:8px 0 0;color:var(--muted);font-size:14px;max-width:48ch}
+
+  .namefield{display:flex;align-items:center;gap:8px;margin:18px 0 0;
+    border:1px solid var(--line);border-radius:3px;background:var(--raise);padding:0 10px}
+  .namefield span{color:var(--muted);font-size:13px;white-space:nowrap}
+  .namefield input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);
+    font:inherit;font-weight:500;padding:9px 0;outline:none}
+
+  h2.sec{font-family:Archivo,sans-serif;font-weight:700;font-size:17px;
+    letter-spacing:-.01em;margin:32px 0 4px}
+  .sechead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .datenav{display:flex;align-items:center;gap:4px;margin-top:28px}
+  .step{font:inherit;font-size:17px;line-height:1;cursor:pointer;background:transparent;
+    color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:5px 10px}
+  .datenav input{font:inherit;font-size:13px;padding:5px 7px;border:1px solid var(--line);
+    border-radius:3px;background:var(--paper);color:var(--ink)}
+  .sublede{margin:0 0 12px;font-size:13px;color:var(--muted)}
+
+  /* courts panel */
+  .slotrow{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--line)}
+  .slotrow:last-of-type{border-bottom:1px solid var(--line)}
+  .slotrow.past{opacity:.42}
+  .chip{font-family:Archivo,sans-serif;font-weight:700;font-size:12px;flex:none;
+    border:1px solid var(--line);border-radius:3px;padding:3px 7px;white-space:nowrap}
+  .slotmain{flex:1;min-width:0}
+  .slotmain b{font-family:Archivo,sans-serif;font-weight:700;font-size:15px;letter-spacing:-.01em}
+  .slotmain i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .day{display:flex;align-items:baseline;gap:10px;margin:26px 0 12px}
+  .day b{font-family:Archivo,sans-serif;font-weight:700;font-size:17px;letter-spacing:-.01em}
+  .day i{font-style:normal;color:var(--muted);font-size:13px}
+  .day hr{flex:1;border:0;border-top:1px solid var(--line);margin:0}
+
+  .sesh{border:1px solid var(--line);border-radius:4px;background:var(--raise);
+    padding:14px 15px;margin-bottom:12px}
+  .sesh.on{border-left:3px solid var(--green);padding-left:13px}
+  .shead{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+  .stime{font-family:Archivo,sans-serif;font-weight:700;font-size:19px;letter-spacing:-.015em}
+  .swhere{text-align:right;font-size:13px;color:var(--muted);white-space:nowrap}
+  .court{display:flex;gap:14px;align-items:center;margin:12px 0 10px}
+  .court svg{width:132px;height:66px;flex:none}
+  .count{font-family:Archivo,sans-serif;font-weight:800;font-size:30px;line-height:1;letter-spacing:-.03em}
+  .status{font-size:13px;font-weight:500;margin-top:3px}
+  .status.need{color:var(--red)} .status.go{color:var(--green)} .status.full{color:var(--muted)}
+  .hours{margin:2px 0 12px;border-top:1px solid var(--line)}
+  .hr{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .hr .t{font-family:Archivo,sans-serif;font-weight:700;font-size:13px;width:82px;flex:none}
+  .hr .bar{flex:1;height:8px;background:var(--slot-empty);border-radius:2px;overflow:hidden;min-width:30px}
+  .hr .bar i{display:block;height:100%;background:var(--ink)}
+  .hr .n{font-family:Archivo,sans-serif;font-weight:800;font-size:15px;width:26px;text-align:right;flex:none}
+  .hr .s{font-size:11.5px;color:var(--muted);width:92px;flex:none;text-align:right}
+  .hr.past{opacity:.4}
+  .peak{font-size:12.5px;color:var(--muted);margin:0 0 10px}
+  .ball{font-size:13px;color:var(--muted);margin:0 0 12px}
+  .style{margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+  .style span{display:block;font-size:11.5px;color:var(--muted)}
+  .style b{font-family:Archivo,sans-serif;font-weight:700;font-size:15px;letter-spacing:-.01em}
+  .style i{font-style:normal;font-size:12.5px;color:var(--muted);margin-left:7px}
+  .roster{font-size:13px;color:var(--muted);margin:0 0 12px;word-break:break-word}
+  .roster .me{color:var(--ink);font-weight:600}
+  .note{font-size:13px;color:var(--muted);border-left:2px solid var(--line);padding-left:9px;margin:0 0 12px}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+  .btn{font:inherit;font-weight:600;font-size:14px;cursor:pointer;border-radius:3px;
+    padding:8px 16px;border:1px solid var(--ink);background:var(--ink);color:var(--paper)}
+  .btn.ghost{background:transparent;color:var(--ink)}
+  .btn.sm{font-size:12.5px;padding:5px 11px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .link{background:none;border:0;padding:0;font:inherit;font-size:13px;color:var(--muted);
+    text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+  a{color:var(--ink)}
+  .btn:focus-visible,.link:focus-visible,input:focus-visible,select:focus-visible,
+  textarea:focus-visible,a:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+  .panel{border:1px dashed var(--line);border-radius:4px;padding:15px;margin-top:14px}
+  .panel p{margin:0 0 10px;font-size:13px;color:var(--muted)}
+  textarea{width:100%;min-height:120px;font:inherit;font-size:13px;padding:9px;
+    border:1px solid var(--line);border-radius:3px;background:var(--paper);
+    color:var(--ink);resize:vertical}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .f{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .f span{font-size:12px;color:var(--muted)}
+  .f select,.f input{font:inherit;font-size:14px;padding:8px 9px;border:1px solid var(--line);
+    border-radius:3px;background:var(--paper);color:var(--ink);width:100%}
+  .wide{grid-column:1 / -1}
+
+  .empty{border:1px dashed var(--line);border-radius:4px;padding:24px 18px;
+    text-align:center;color:var(--muted);font-size:14px}
+  .empty b{display:block;color:var(--ink);font-family:Archivo,sans-serif;
+    font-weight:700;font-size:17px;margin-bottom:5px}
+  .warn{border:1px solid var(--red);border-radius:3px;padding:11px 13px;font-size:13px;margin:16px 0}
+  .foot{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .slot{transition:fill .18s ease, r .18s ease}
+  @media (prefers-reduced-motion: reduce){ .slot{transition:none} }
+  @media (max-width:420px){ .grid{grid-template-columns:1fr} .court svg{width:108px;height:54px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <h1>Who's playing<br>tonight?</h1>
+    <p>Pickup volleyball at the Nick and the Bakke. Put your name down, see whether it's enough for a real game before you walk over.</p>
+  </header>
+
+  <label class="namefield">
+    <span>You are</span>
+    <input id="me" type="text" placeholder="first name + last initial" maxlength="28" autocomplete="off">
+  </label>
+
+  <div id="warn"></div>
+
+  <h2 class="sec">The board</h2>
+  <main id="list" aria-live="polite"></main>
+
+  <div class="sechead">
+    <h2 class="sec" id="courts-head">Volleyball courts</h2>
+    <div class="datenav">
+      <button class="step" id="d-prev" aria-label="Previous day">&#8249;</button>
+      <input id="d-date" type="date" aria-label="Date">
+      <button class="step" id="d-next" aria-label="Next day">&#8250;</button>
+    </div>
+  </div>
+  <p class="sublede" id="courts-lede"></p>
+  <div id="courts"></div>
+  <div style="margin-top:12px"><button class="link" id="imp-toggle">Update the court list</button></div>
+
+  <div class="panel" id="imp" hidden>
+    <p>Open the volleyball schedule, select the day&rsquo;s rows, and paste them here. It covers the Nick and Bakke together.</p>
+    <p>
+      <a href="https://uwmadison.emscloudservice.com/web/CustomBrowseEvents.aspx?data=XmURYuENS4HvtcBKVvDaxuOuX1FnkeUbpFj0Yhf16fogRKneFdGtyJgMH4qiX2g%2fSHbZC%2fQrDhipE1l16MiL0c5hAB5Ku0I7iORuuprRCiVRrssmMT9PMVIbmNhg6Up7HDzlQewp2OaUweNGc4I%2fgaHk9uaCaSAq" target="_blank" rel="noopener">Open Rec Volleyball schedule</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://recwell.wisc.edu/reservations/daily-schedules/" target="_blank" rel="noopener">All Rec Well daily schedules</a>
+    </p>
+    <div class="grid" style="margin-bottom:10px">
+      <label class="f"><span>Day this paste is for</span><input id="imp-date" type="date"></label>
+      <label class="f"><span>If a line names no building</span><select id="imp-venue">
+        <option value="nick">the Nick</option><option value="bakke">the Bakke</option>
+      </select></label>
+    </div>
+    <textarea id="imp-text" placeholder="Paste the whole daily list. The date is picked up automatically if it is in the text."></textarea>
+    <div class="actions" style="margin-top:11px">
+      <button class="btn" id="imp-go">Read it</button>
+      <button class="link" id="imp-clear">Clear this day</button>
+      <span id="imp-msg" style="font-size:13px;color:var(--muted)"></span>
+    </div>
+    <div id="imp-preview"></div>
+  </div>
+
+  <h2 class="sec">Sign up for a time</h2>
+  <p class="sublede" id="post-lede"></p>
+  <div class="panel" id="postbox">
+    <div id="post-none" class="empty" hidden><b>No open courts listed</b>Add the court list for this day and the options will appear here.</div>
+    <div id="post-form">
+      <div class="grid">
+        <label class="f wide"><span>Open court slot</span><select id="f-slot"></select></label>
+        <label class="f"><span>Start</span><select id="f-start"></select></label>
+        <label class="f"><span>End</span><select id="f-end"></select></label>
+        <label class="f"><span>Friends coming with you</span><select id="f-party"></select></label>
+        <label class="f"><span>Bringing a ball</span><select id="f-ball">
+          <option value="0">No</option><option value="1">Yes</option></select></label>
+      </div>
+      <div class="actions" style="margin-top:13px">
+        <button class="btn" id="f-go">Add us</button>
+        <span id="f-msg" style="font-size:13px;color:var(--muted)"></span>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">All skill levels are welcome here. If you have never played, come anyway. Someone will get you in a rotation.<br><br>
+  Expect more people than the board shows. Plenty of players never see this page and just walk on, so a court listing four signups can easily have twelve people on it. Treat the numbers as a floor, not a count.<br><br>
+  Signing up is a promise to show up, not a reservation. Rec Well controls the courts.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const MIN_PLAYERS = 8, FULL_PLAYERS = 12, ROWS = [3,3], SEATS = 12;
+  const VENUES = { nick:{label:"the Nick",short:"Nick",courts:8},
+                   bakke:{label:"the Bakke",short:"Bakke",courts:8} };
+  const MAX_SIGNUPS = 400, MAX_BLOCKS = 60;
+
+  const LS = {
+    get(k){ try{return localStorage.getItem(k);}catch(e){return null;} },
+    set(k,v){ try{localStorage.setItem(k,v);}catch(e){} }
+  };
+  let myId = LS.get("openrec.id");
+  if(!myId){ myId = "p"+Math.random().toString(36).slice(2,11); LS.set("openrec.id",myId); }
+  let myName = LS.get("openrec.name") || "";
+
+  let db=null, canWrite=true, loaded=false, pending=false, draftBlocks=null;
+  const signups=new Map();
+  let courtDocs={}, courtUnsubs=[], panelDate=null;
+
+  const el=(id)=>document.getElementById(id);
+  const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+  function todayKey(d){ const t=d||new Date();
+    return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0"); }
+  function parseKey(k){ const p=String(k).split("-");
+    return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); }
+  function clock(min){ let h=Math.floor(min/60),m=min%60; const ap=h>=12?"p":"a";
+    h=h%12; if(h===0)h=12; return h+(m?":"+String(m).padStart(2,"0"):"")+ap; }
+  function dayLabel(key){ const d=parseKey(key), now=new Date();
+    const diff=Math.round((d-new Date(now.getFullYear(),now.getMonth(),now.getDate()))/86400000);
+    if(diff===0)return "Today"; if(diff===1)return "Tomorrow";
+    return d.toLocaleDateString(undefined,{weekday:"long"}); }
+  function dayStamp(key){ return parseKey(key).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
+  function nowMinutes(){ const d=new Date(); return d.getHours()*60+d.getMinutes(); }
+
+  /* ---------- court diagram ---------- */
+  function slotCoords(){
+    const W=120,H=120,pts=[],bandW=W/(ROWS.length+0.6);
+    ROWS.forEach(function(n,ri){ const x=W-bandW*(ri+0.75);
+      for(let i=0;i<n;i++) pts.push([x,H*(i+1)/(n+1)]); });
+    return pts;
+  }
+  function courtSVG(filled){
+    const half=slotCoords(), order=[];
+    for(let i=0;i<half.length;i++){ order.push(half[i]); order.push([240-half[i][0],half[i][1]]); }
+    const dots=order.map(function(p,i){ const on=i<filled;
+      return '<circle class="slot" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(on?9:7)+
+        '" fill="'+(on?"var(--ink)":"var(--slot-empty)")+'"/>'; }).join("");
+    return '<svg viewBox="0 0 240 120" role="img" aria-hidden="true" focusable="false">'+
+      '<rect x="2" y="2" width="236" height="116" rx="2" fill="none" stroke="var(--line)" stroke-width="2"/>'+
+      '<line x1="120" y1="0" x2="120" y2="120" stroke="var(--line)" stroke-width="2"/>'+dots+'</svg>';
+  }
+
+  /* ---------- schedule parser ---------- */
+  const MONTHS = {january:0,february:1,march:2,april:3,may:4,june:5,july:6,
+                  august:7,september:8,october:9,november:10,december:11};
+  const TIME_TOKEN = /\b(\d{1,2}):(\d{2})\s*([AaPp])\.?[Mm]\.?/g;
+  const COURT_RE = /\bcourts?\s*(\d{1,2})(?:\s*(?:-|\u2013|&|and|,)\s*(\d{1,2}))?/i;
+
+  function toMin(h,m,ap){
+    h=Number(h); m=Number(m||0); ap=String(ap).toLowerCase();
+    if(ap==="p" && h!==12) h+=12;
+    if(ap==="a" && h===12) h=0;
+    return h*60+m;
+  }
+
+  function detectDate(text){
+    const m=String(text).match(
+      /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/i);
+    if(!m) return null;
+    const mo=MONTHS[m[1].toLowerCase()];
+    if(mo===undefined) return null;
+    return todayKey(new Date(Number(m[3]),mo,Number(m[2])));
+  }
+
+  // Rows arrive as: start TAB end TAB tz TAB event TAB location TAB department
+  function eventNameOf(line){
+    if(line.indexOf("\t")<0) return null;
+    const f=line.split("\t").map(function(x){return x.trim();}).filter(function(x){return x.length;});
+    for(let i=0;i<f.length;i++){ if(/^C[SD]?T$/i.test(f[i]) && f[i+1]) return f[i+1]; }
+    return null;
+  }
+
+  function parseSchedule(text, fallbackVenue){
+    const lines=String(text).split(/\r?\n/);
+    const out=[], seen=new Set();
+    let scanned=0;
+    for(let i=0;i<lines.length && out.length<MAX_BLOCKS;i++){
+      const line=lines[i].trim();
+      if(!line) continue;
+      scanned++;
+      if(!/volleyball/i.test(line)) continue;
+      if(/intramural|\bIM\b|club/i.test(line)) continue;
+
+      TIME_TOKEN.lastIndex=0;
+      const times=[]; let m;
+      while(times.length<2 && (m=TIME_TOKEN.exec(line))!==null) times.push(toMin(m[1],m[2],m[3]));
+      if(times.length<2) continue;
+      let start=times[0], end=times[1];
+      if(end<=start) end=1440;                 // 12:00 AM finish means midnight
+
+      const cm=line.match(COURT_RE);
+      if(!cm) continue;
+      const lo=Number(cm[1]), hi=cm[2]?Number(cm[2]):lo;
+      if(!(lo>=1 && lo<=20)) continue;
+
+      const venue = /bakke/i.test(line) ? "bakke"
+                  : (/nicholas|\bnick\b|\bnrc\b/i.test(line) ? "nick" : fallbackVenue);
+      const key=venue+"|"+lo+"|"+hi+"|"+start+"|"+end;
+      if(seen.has(key)) continue;
+      seen.add(key);
+
+      out.push({
+        venue: venue,
+        court: hi>lo ? (lo+"\u2013"+hi) : String(lo),
+        courtNum: lo,
+        start: start,
+        end: end,
+        label: (eventNameOf(line) || "Open Rec Volleyball").slice(0,70)
+      });
+    }
+    out.sort(function(a,b){ return a.start-b.start || a.courtNum-b.courtNum; });
+    out.scanned=scanned;
+    return out;
+  }
+
+  /* ---------- how it will probably be played ---------- */
+  function playStyle(n){
+    if(n>=20) return {t:"King of the court", d:"Too many for one game. Winners hold the court."};
+    if(n>=12) return {t:"6v6", d:(n>12 ? (n-12)+" rotating in" : "Full six a side")};
+    if(n>=10) return {t:"5v5", d:"Short side, still a real game"};
+    if(n>=8)  return {t:"4v4", d:"Short side, still a real game"};
+    return {t:"Not enough yet", d:(8-n)+" more for 4v4, "+(12-n)+" for 6v6"};
+  }
+
+  /* ---------- render ---------- */
+  function queueRender(){ if(pending)return; pending=true;
+    requestAnimationFrame(function(){ pending=false; render(); }); }
+
+  function renderCourts(){
+    const box=el("courts"), lede=el("courts-lede"), key=panelDate;
+    const blocks=dayBlocks().slice();
+    blocks.sort(function(a,b){ return a.start-b.start
+      || String(a.venue).localeCompare(String(b.venue)) || a.courtNum-b.courtNum; });
+    const nm=nowMinutes(), isToday=(key===todayKey());
+    const stamp=parseKey(key).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+
+    if(!blocks.length){
+      lede.textContent=stamp;
+      box.innerHTML='<div class="empty"><b>No court list yet</b>'+
+        'Paste this day\u2019s facility schedule below and everyone on the board sees it.</div>';
+      return;
+    }
+    const done=blocks.filter(function(b){ return isToday && b.end<=nm; }).length;
+    const who=Object.keys(courtDocs).map(function(k){ return courtDocs[k].updatedByName; })
+      .filter(Boolean);
+    lede.innerHTML=esc(stamp)+(who.length?(" \u00b7 added by "+esc(who.join(", "))):"")+
+      (done===blocks.length?' \u00b7 <span style="color:var(--red)">every slot has finished</span>':"");
+    box.innerHTML=blocks.map(function(b){
+      const v=VENUES[b.venue]||VENUES.nick;
+      const past=isToday && b.end<=nm;
+      return '<div class="slotrow'+(past?" past":"")+'">'+
+        '<span class="chip">'+esc(v.short)+' '+esc(b.court)+'</span>'+
+        '<span class="slotmain"><b>'+clock(b.start)+'\u2013'+clock(b.end)+'</b>'+
+          (b.label?'<i>'+esc(b.label)+'</i>':'')+'</span>'+
+        (past?'<span style="font-size:12px;color:var(--muted);flex:none">finished</span>'
+             :'<button class="btn ghost sm" data-use="'+esc(blockId(b))+'">Use this</button>')+
+        '</div>';
+    }).join("");
+  }
+
+  /* ---------- the board: courts with hour-by-hour headcounts ---------- */
+  function groupSignups(){
+    const tk=todayKey(), nm=nowMinutes();
+    const byCourt=new Map();
+    signups.forEach(function(u,id){
+      if(u.date<tk) return;
+      if(u.date===tk && u.endMin<=nm) return;
+      const k=u.date+"|"+u.venue+"|"+u.court;
+      if(!byCourt.has(k)) byCourt.set(k,{date:u.date,venue:u.venue,court:u.court,rows:[]});
+      byCourt.get(k).rows.push(Object.assign({id:id},u));
+    });
+    const out=Array.from(byCourt.values());
+    out.forEach(function(g){
+      const lo=Math.floor(Math.min.apply(null,g.rows.map(function(r){return r.startMin;}))/60);
+      const hi=Math.ceil(Math.max.apply(null,g.rows.map(function(r){return r.endMin;}))/60);
+      const isToday=(g.date===tk);
+      g.hours=[];
+      for(let h=lo;h<hi;h++){
+        const a=h*60, b=a+60;
+        let n=0;
+        g.rows.forEach(function(r){ if(r.startMin<b && r.endMin>a) n+=(Number(r.party)||1); });
+        g.hours.push({a:a,b:b,n:n,past:isToday && b<=nm});
+      }
+      g.live=g.hours.filter(function(x){ return !x.past; });
+      g.peak=g.live.length?Math.max.apply(null,g.live.map(function(x){return x.n;})):0;
+      g.people=g.rows.reduce(function(t,r){ return t+(Number(r.party)||1); },0);
+      g.balls=g.rows.filter(function(r){ return r.ball; }).length;
+      g.mine=g.rows.filter(function(r){ return r.by===myId; });
+      g.start=Math.min.apply(null,g.rows.map(function(r){return r.startMin;}));
+    });
+    out.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:(a.start-b.start
+      || String(a.venue).localeCompare(String(b.venue)) || String(a.court).localeCompare(String(b.court)))); });
+    return out.filter(function(g){ return g.live.length; });
+  }
+
+  function render(){
+    const list=el("list"), groups=groupSignups();
+    if(!groups.length){
+      list.innerHTML='<div class="empty"><b>'+(loaded?"Nobody on the board yet":"Loading")+'</b>'+
+        (loaded?"Sign up below and send the link to whoever you\u2019d play with.":"One moment.")+'</div>';
+      return;
+    }
+    let html="",lastDay=null;
+    groups.forEach(function(g){
+      if(g.date!==lastDay){ lastDay=g.date;
+        html+='<div class="day"><b>'+esc(dayLabel(g.date))+'</b><i>'+esc(dayStamp(g.date))+'</i><hr></div>'; }
+      html+=courtCard(g);
+    });
+    list.innerHTML=html;
+  }
+
+  function courtCard(g){
+    const v=VENUES[g.venue]||VENUES.nick;
+    // the number people actually need: this hour if it is running, else the next one
+    const nm=nowMinutes(), isToday=(g.date===todayKey());
+    let cur=null, running=false;
+    for(let i=0;i<g.live.length;i++){
+      if(isToday && g.live[i].a<=nm && nm<g.live[i].b){ cur=g.live[i]; running=true; break; }
+    }
+    if(!cur) cur=g.live[0];
+    const n=cur?cur.n:0, st=playStyle(n);
+    const when=(running?"Right now, ":"First hour, ")+clock(cur.a)+"\u2013"+clock(cur.b);
+    let status,cls;
+    if(n<MIN_PLAYERS){ status=(MIN_PLAYERS-n)+" more needed this hour"; cls="need"; }
+    else if(n<FULL_PLAYERS){ status="Game on. Room for "+(FULL_PLAYERS-n)+" more"; cls="go"; }
+    else { status="Game on"; cls="full"; }
+    let peakLine="";
+    if(g.peak>n && g.live.length){
+      let ph=g.live[0];
+      g.live.forEach(function(x){ if(x.n>ph.n) ph=x; });
+      peakLine='<p class="peak">Busiest at '+clock(ph.a)+'\u2013'+clock(ph.b)+' with '+ph.n+'</p>';
+    }
+
+    const top=Math.max(g.peak,1);
+    const hours=g.hours.map(function(x){
+      const sty=x.n?playStyle(x.n).t:"\u2014";
+      return '<div class="hr'+(x.past?" past":"")+'">'+
+        '<span class="t">'+clock(x.a)+'\u2013'+clock(x.b)+'</span>'+
+        '<span class="bar"><i style="width:'+Math.round(100*Math.min(x.n,top)/top)+'%"></i></span>'+
+        '<span class="n">'+x.n+'</span><span class="s">'+esc(sty)+'</span></div>';
+    }).join("");
+
+    const names=g.rows.slice().sort(function(a,b){ return a.startMin-b.startMin; })
+      .map(function(r){
+        const extra=(Number(r.party)||1)>1?(" +"+((Number(r.party)||1)-1)):"";
+        const nm=esc(r.name||"Someone")+extra+" ("+clock(r.startMin)+"\u2013"+clock(r.endMin)+")";
+        return r.by===myId?'<span class="me">'+nm+'</span>':nm;
+      }).join(", ");
+
+    return '<article class="sesh'+(n>=MIN_PLAYERS?" on":"")+'">'+
+      '<div class="shead"><div class="stime">'+esc(v.label)+'</div>'+
+      '<div class="swhere">Court '+esc(g.court)+'</div></div>'+
+      '<div class="court">'+courtSVG(Math.min(n,SEATS))+
+        '<div><div class="count">'+n+'</div>'+
+        '<div class="status '+cls+'">'+esc(status)+'</div>'+
+        '<div class="style"><span>'+esc(when)+'</span><b>'+esc(st.t)+'</b><i>'+esc(st.d)+'</i></div>'+
+        '</div></div>'+
+      '<div class="hours">'+hours+'</div>'+peakLine+
+      '<p class="roster">'+names+'</p>'+
+      '<p class="ball">'+(g.balls?(g.balls+(g.balls===1?" person is":" people are")+" bringing a ball")
+                                 :"Nobody has said they\u2019re bringing a ball")+'</p>'+
+      (g.mine.length?'<div class="actions"><button class="btn ghost" data-drop-me="'+
+        esc(g.date+"|"+g.venue+"|"+g.court)+'">Drop me from this court</button></div>':'')+
+    '</article>';
+  }
+
+  /* ---------- court list storage: one doc per day per building ---------- */
+  function courtDocId(date,venue){ return date+"-"+venue; }
+  function blockId(b){ return b.venue+"~"+b.courtNum+"~"+b.start+"~"+b.end; }
+  function dayBlocks(){
+    const out=[];
+    Object.keys(courtDocs).forEach(function(k){
+      const d=courtDocs[k];
+      if(d && Array.isArray(d.blocks)) d.blocks.forEach(function(b){ out.push(b); });
+    });
+    return out;
+  }
+
+  function goToDate(key){
+    panelDate=key;
+    el("d-date").value=key; el("imp-date").value=key;
+    courtUnsubs.forEach(function(u){ try{u();}catch(e){} });
+    courtUnsubs=[]; courtDocs={};
+    renderCourts(); buildPostForm();
+    if(!db) return;
+    Object.keys(VENUES).forEach(function(vn){
+      const un=db.doc("courtdays/"+courtDocId(key,vn)).onSnapshot(function(snap){
+        if(snap.exists) courtDocs[vn]=snap.data()||null; else delete courtDocs[vn];
+        renderCourts(); buildPostForm();
+      }, function(){});
+      courtUnsubs.push(un);
+    });
+  }
+  function shiftDate(days){ const d=parseKey(panelDate); d.setDate(d.getDate()+days); goToDate(todayKey(d)); }
+
+  async function start(){
+    el("me").value=myName;
+    panelDate=todayKey();
+    el("d-date").value=panelDate; el("imp-date").value=panelDate;
+    let po=""; for(let i=0;i<=9;i++) po+=opt(String(i),i===0?"Just me":("+"+i),i===0);
+    el("f-party").innerHTML=po;
+    renderCourts(); buildPostForm(); render();
+
+    db=await claude.use("db");
+    if(!db){
+      el("warn").innerHTML='<div class="warn">Sign-ups can\u2019t load in this view, so the board is read-only.</div>';
+      canWrite=false; loaded=true; render(); return;
+    }
+    db.collection("signups").limit(MAX_SIGNUPS).onSnapshot(function(snap){
+      signups.clear();
+      snap.docs.forEach(function(d){ const v=d.data()||{};
+        if(typeof v.date==="string" && typeof v.startMin==="number") signups.set(d.id,v); });
+      loaded=true; queueRender();
+    }, function(){
+      el("warn").innerHTML='<div class="warn">The board stopped updating. Reload to reconnect.</div>';
+    });
+    goToDate(panelDate);
+    sweep();
+  }
+
+  async function sweep(){
+    try{
+      const lease=await db.doc("meta/sweep").acquire({holder:myId,ttlMs:6*60*60*1000});
+      if(!lease||!lease.acquired) return;
+      const cutoff=todayKey(new Date(Date.now()-3*86400000));
+      const snap=await db.collection("signups").where("date","<",cutoff).limit(40).get();
+      for(const d of snap.docs) await db.doc("signups/"+d.id).delete();
+    }catch(e){}
+  }
+
+  /* ---------- actions ---------- */
+  function needName(){
+    myName=el("me").value.trim();
+    if(!myName){ el("me").focus();
+      el("warn").innerHTML='<div class="warn">Add your name first so people know who is coming.</div>';
+      return false; }
+    LS.set("openrec.name",myName); el("warn").innerHTML=""; return true;
+  }
+
+  async function dropMine(tag){
+    if(!db) return;
+    const parts=String(tag).split("|");
+    const gone=[];
+    signups.forEach(function(u,id){
+      if(u.by===myId && u.date===parts[0] && u.venue===parts[1] && String(u.court)===parts[2]) gone.push(id);
+    });
+    try{ for(const id of gone) await db.doc("signups/"+id).delete(); }
+    catch(e){ el("warn").innerHTML='<div class="warn">Couldn\u2019t remove that.</div>'; }
+  }
+
+  /* ---------- sign-up form, bound to the day's open slots ---------- */
+  function opt(v,l,sel){ return '<option value="'+esc(v)+'"'+(sel?" selected":"")+'>'+esc(l)+'</option>'; }
+
+  function openSlots(){
+    const nm=nowMinutes(), isToday=(panelDate===todayKey());
+    return dayBlocks().filter(function(b){ return !(isToday && b.end<=nm); })
+      .sort(function(a,b){ return a.start-b.start
+        || String(a.venue).localeCompare(String(b.venue)) || a.courtNum-b.courtNum; });
+  }
+  function marks(a,b){
+    const out=[a]; let t=Math.ceil((a+1)/30)*30;
+    while(t<b){ out.push(t); t+=30; }
+    if(out[out.length-1]!==b) out.push(b);
+    return out;
+  }
+  function buildPostForm(){
+    const slots=openSlots();
+    el("post-lede").textContent=parseKey(panelDate)
+      .toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+    el("post-none").hidden=!!slots.length;
+    el("post-form").hidden=!slots.length;
+    if(!slots.length) return;
+    const prev=el("f-slot").value;
+    el("f-slot").innerHTML=slots.map(function(b){
+      const v=VENUES[b.venue]||VENUES.nick;
+      return opt(blockId(b), v.short+" court "+b.court+" \u00b7 "+clock(b.start)+"\u2013"+clock(b.end),
+                 blockId(b)===prev);
+    }).join("");
+    if(el("f-slot").selectedIndex<0) el("f-slot").selectedIndex=0;
+    buildTimes();
+  }
+  function currentSlot(){
+    const slots=openSlots(), want=el("f-slot").value;
+    for(let i=0;i<slots.length;i++) if(blockId(slots[i])===want) return slots[i];
+    return slots[0]||null;
+  }
+  function buildTimes(){
+    const b=currentSlot(); if(!b) return;
+    const isToday=(panelDate===todayKey()), nm=nowMinutes();
+    let from=b.start;
+    if(isToday){ const f=Math.max(b.start,Math.ceil(nm/30)*30); if(f<b.end) from=f; }
+    const pts=marks(from,b.end), prev=Number(el("f-start").value);
+    el("f-start").innerHTML=pts.slice(0,-1).map(function(m){ return opt(String(m),clock(m),m===prev); }).join("");
+    if(el("f-start").selectedIndex<0) el("f-start").selectedIndex=0;
+    buildEnds();
+  }
+  function buildEnds(){
+    const b=currentSlot(); if(!b) return;
+    const st=Number(el("f-start").value);
+    const pts=marks(st,b.end).filter(function(m){ return m>st; });
+    const prev=Number(el("f-end").value);
+    el("f-end").innerHTML=pts.map(function(m){ return opt(String(m),clock(m),m===prev); }).join("");
+    if(el("f-end").selectedIndex<0) el("f-end").selectedIndex=pts.length-1;
+  }
+  function useBlock(id){
+    const slots=openSlots();
+    for(let i=0;i<slots.length;i++){
+      if(blockId(slots[i])===id){
+        el("f-slot").value=id; buildTimes();
+        el("f-go").scrollIntoView({behavior:"smooth",block:"center"});
+        el("f-msg").textContent="Picked. Set your times and add yourself.";
+        return;
+      }
+    }
+  }
+
+  async function addMe(){
+    const msg=el("f-msg");
+    if(!db){ msg.textContent="Not connected."; return; }
+    if(!needName()){ msg.textContent="Add your name up top first."; return; }
+    const b=currentSlot();
+    if(!b){ msg.textContent="No open court selected."; return; }
+    const startMin=Number(el("f-start").value), endMin=Number(el("f-end").value);
+    if(endMin<=startMin){ msg.textContent="End time has to be after the start."; return; }
+    if(startMin<b.start||endMin>b.end){ msg.textContent="That falls outside the open slot."; return; }
+    const btn=el("f-go"); btn.disabled=true; msg.textContent="Adding\u2026";
+    try{
+      await db.collection("signups").add({
+        date:panelDate, venue:b.venue, court:b.court, courtNum:b.courtNum,
+        startMin:startMin, endMin:endMin,
+        name:myName, party:1+Number(el("f-party").value||0),
+        ball:el("f-ball").value==="1", by:myId, at:Date.now()
+      });
+      msg.textContent="You\u2019re on the board.";
+      setTimeout(function(){ if(msg.textContent==="You\u2019re on the board.") msg.textContent=""; },3000);
+    }catch(err){
+      msg.textContent=(err&&err.code==="quota_exceeded")
+        ? "The board is full. Old days need clearing." : "That didn\u2019t save. Try again.";
+    }finally{ btn.disabled=false; }
+  }
+
+  /* ---------- import ---------- */
+  function previewHTML(list){
+    return '<p style="margin:14px 0 6px;font-size:13px;color:var(--muted)">Found '+list.length+
+      '. Check them before saving.</p>'+
+      list.map(function(b,i){ const v=VENUES[b.venue]||VENUES.nick;
+        return '<div class="slotrow"><span class="chip">'+esc(v.short)+' '+esc(b.court)+'</span>'+
+          '<span class="slotmain"><b>'+clock(b.start)+'\u2013'+clock(b.end)+'</b>'+
+          (b.label?'<i>'+esc(b.label)+'</i>':'')+'</span>'+
+          '<button class="link" data-drop="'+i+'">drop</button></div>'; }).join("")+
+      '<div class="actions" style="margin-top:12px"><button class="btn" id="imp-save">Save these courts</button></div>';
+  }
+  function readPaste(){
+    const msg=el("imp-msg"), raw=el("imp-text").value;
+    const found=detectDate(raw);
+    if(found) el("imp-date").value=found;
+    draftBlocks=parseSchedule(raw, el("imp-venue").value);
+    const scanned=draftBlocks.scanned||0;
+    if(!draftBlocks.length){
+      el("imp-preview").innerHTML="";
+      msg.textContent=scanned?("Read "+scanned+" rows, no open rec volleyball in them.")
+                             :"Nothing to read in that paste.";
+      return;
+    }
+    msg.textContent=(found?("Dated "+dayStamp(found)+". "):"")+"Read "+scanned+" rows.";
+    el("imp-preview").innerHTML=previewHTML(draftBlocks);
+  }
+
+  // Each building gets its own document for the day, so saving one never
+  // touches or overwrites the other.
+  async function saveBlocks(){
+    if(!db||!draftBlocks||!draftBlocks.length) return;
+    if(!needName()){ el("imp-msg").textContent="Add your name in the field at the top first."; return; }
+    const key=el("imp-date").value||todayKey();
+    const byVenue={};
+    draftBlocks.forEach(function(b){ (byVenue[b.venue]=byVenue[b.venue]||[]).push(b); });
+    const saved=[];
+    try{
+      for(const vn of Object.keys(byVenue)){
+        const list=byVenue[vn].slice(0,MAX_BLOCKS);
+        await db.doc("courtdays/"+courtDocId(key,vn)).set({
+          date:key, venue:vn, blocks:list,
+          updatedBy:myId, updatedByName:myName, updatedAt:Date.now()
+        });
+        saved.push(list.length+" at "+(VENUES[vn]||{short:vn}).short);
+      }
+      el("imp-text").value=""; el("imp-preview").innerHTML=""; draftBlocks=null;
+      el("imp-msg").textContent="Saved "+saved.join(" and ")+" on "+dayStamp(key)+".";
+      if(key!==panelDate) goToDate(key);
+    }catch(e){ el("imp-msg").textContent="Couldn\u2019t save that."; }
+  }
+
+  async function clearDay(){
+    if(!db) return;
+    const key=el("imp-date").value||todayKey();
+    try{
+      for(const vn of Object.keys(VENUES)) await db.doc("courtdays/"+courtDocId(key,vn)).delete();
+      el("imp-msg").textContent="Cleared "+dayStamp(key)+".";
+    }catch(e){ el("imp-msg").textContent="Couldn\u2019t clear that."; }
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener("click",function(e){
+    const u=e.target.closest("[data-use]"); if(u){ useBlock(u.getAttribute("data-use")); return; }
+    const dm=e.target.closest("[data-drop-me]"); if(dm){ dropMine(dm.getAttribute("data-drop-me")); return; }
+    const dr=e.target.closest("[data-drop]");
+    if(dr && draftBlocks){
+      draftBlocks.splice(Number(dr.getAttribute("data-drop")),1);
+      el("imp-preview").innerHTML=draftBlocks.length?previewHTML(draftBlocks):"";
+      return;
+    }
+    if(e.target.id==="imp-save"){ saveBlocks(); return; }
+  });
+  el("me").addEventListener("change",function(){ myName=el("me").value.trim(); LS.set("openrec.name",myName); });
+  el("d-prev").addEventListener("click",function(){ shiftDate(-1); });
+  el("d-next").addEventListener("click",function(){ shiftDate(1); });
+  el("d-date").addEventListener("change",function(){ goToDate(this.value||todayKey()); });
+  el("f-slot").addEventListener("change",buildTimes);
+  el("f-start").addEventListener("change",buildEnds);
+  el("f-go").addEventListener("click",addMe);
+  el("imp-toggle").addEventListener("click",function(){
+    const p=el("imp"); p.hidden=!p.hidden;
+    this.textContent=p.hidden?"Update the court list":"Hide the court list editor";
+  });
+  el("imp-go").addEventListener("click",readPaste);
+  el("imp-clear").addEventListener("click",clearDay);
+
+  start();
+})();
+</script>
+</body>
+</html>
