@@ -35,16 +35,11 @@
     color-scheme:light dark;
   }
   @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
+    :root{
       --bg:#121214; --card:#1B1B1F; --line:#2B2B31; --soft:#2B2B31; --chip:#26262B;
       --ink:#F2F0EC; --muted:#A29E96; --accent:#D0161D; --accent-hover:#E0343A;
       --go-bg:#15301F; --go:#86DDA9; --go-dot:#4FD18B; --need-bg:#3A1518; --need:#FF9A9A;
     }
-  }
-  :root[data-theme="dark"]{
-    --bg:#121214; --card:#1B1B1F; --line:#2B2B31; --soft:#2B2B31; --chip:#26262B;
-    --ink:#F2F0EC; --muted:#A29E96; --accent:#D0161D; --accent-hover:#E0343A;
-    --go-bg:#15301F; --go:#86DDA9; --go-dot:#4FD18B; --need-bg:#3A1518; --need:#FF9A9A;
   }
   *,*::before,*::after{box-sizing:border-box}
   html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
@@ -319,9 +314,8 @@
 (function(){
   "use strict";
 
-  const MIN_PLAYERS = 8, FULL_PLAYERS = 12, ROWS = [3,3], SEATS = 12;
-  const VENUES = { nick:{label:"the Nick",short:"Nick",courts:8},
-                   bakke:{label:"the Bakke",short:"Bakke",courts:8} };
+  const MIN_PLAYERS = 8, FULL_PLAYERS = 12;
+  const VENUES = { nick:{label:"the Nick",short:"Nick"}, bakke:{label:"the Bakke",short:"Bakke"} };
   const MAX_SIGNUPS = 1000, MAX_BLOCKS = 60;
 
   const LS = {
@@ -356,7 +350,7 @@
     return (parts[0]+" "+parts[parts.length-1][0]).slice(0,28);
   }
 
-  let db=null, canWrite=true, loaded=false, pending=false, draftBlocks=null;
+  let db=null, loaded=false, pending=false, draftBlocks=null;
   const signups=new Map();
   let courtDocs={}, courtUnsubs=[], panelDate=null;
 
@@ -380,24 +374,6 @@
     return d.toLocaleDateString(undefined,{weekday:"long"}); }
   function dayStamp(key){ return parseKey(key).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
   function nowMinutes(){ const d=new Date(); return d.getHours()*60+d.getMinutes(); }
-
-  /* ---------- court diagram ---------- */
-  function slotCoords(){
-    const W=120,H=120,pts=[],bandW=W/(ROWS.length+0.6);
-    ROWS.forEach(function(n,ri){ const x=W-bandW*(ri+0.75);
-      for(let i=0;i<n;i++) pts.push([x,H*(i+1)/(n+1)]); });
-    return pts;
-  }
-  function courtSVG(filled){
-    const half=slotCoords(), order=[];
-    for(let i=0;i<half.length;i++){ order.push(half[i]); order.push([240-half[i][0],half[i][1]]); }
-    const dots=order.map(function(p,i){ const on=i<filled;
-      return '<circle class="slot" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(on?9:7)+
-        '" fill="'+(on?"var(--ink)":"var(--slot-empty)")+'"/>'; }).join("");
-    return '<svg viewBox="0 0 240 120" role="img" aria-hidden="true" focusable="false">'+
-      '<rect x="2" y="2" width="236" height="116" rx="2" fill="none" stroke="var(--line)" stroke-width="2"/>'+
-      '<line x1="120" y1="0" x2="120" y2="120" stroke="var(--line)" stroke-width="2"/>'+dots+'</svg>';
-  }
 
   /* ---------- schedule parser ---------- */
   const MONTHS = {january:0,february:1,march:2,april:3,may:4,june:5,july:6,
@@ -474,11 +450,26 @@
 
   /* ---------- how it will probably be played ---------- */
   function playStyle(n){
-    if(n>=20) return {t:"King of the court", d:"Too many for one game. Winners hold the court."};
-    if(n>=12) return {t:"6v6", d:(n>12 ? (n-12)+" rotating in" : "Full six a side")};
-    if(n>=10) return {t:"5v5", d:"Short side, still a real game"};
-    if(n>=8)  return {t:"4v4", d:"Short side, still a real game"};
-    return {t:"Not enough yet", d:(8-n)+" more for 4v4, "+(12-n)+" for 6v6"};
+    return n>=20 ? "King of the court" : n>=12 ? "6v6" : n>=10 ? "5v5" : n>=8 ? "4v4" : "Not yet";
+  }
+
+
+  // Anyone signed in can write to the database, so every signup is checked and
+  // clamped before it is drawn. Anything malformed is skipped.
+  function cleanSignup(v){
+    if(!v || typeof v.date!=="string" || !/^\d{4}-\d{2}-\d{2}$/.test(v.date)) return null;
+    const s=v.startMin, e=v.endMin;
+    if(!Number.isInteger(s) || !Number.isInteger(e) || s<0 || e>1440 || s>=e) return null;
+    if(!VENUES.hasOwnProperty(v.venue)) return null;
+    return {
+      date:v.date, venue:v.venue, startMin:s, endMin:e,
+      court:String(v.court==null?"":v.court).slice(0,8),
+      courtNum:Number.isInteger(v.courtNum)?v.courtNum:0,
+      name:String(v.name||"Someone").slice(0,40),
+      party:Math.min(10,Math.max(1,Number.isInteger(v.party)?v.party:1)),
+      ball:v.ball===true,
+      by:String(v.by||"")
+    };
   }
 
   /* ---------- render ---------- */
@@ -504,7 +495,7 @@
     const who=Object.keys(courtDocs).map(function(k){ return courtDocs[k].updatedByName; })
       .filter(function(x,i,a){ return x && a.indexOf(x)===i; });
     lede.innerHTML=esc(stamp)+(who.length?(" \u00b7 added by "+esc(who.join(", "))):"")+
-      (done===blocks.length?' \u00b7 <span style="color:var(--red)">every slot has finished</span>':"");
+      (done===blocks.length?' \u00b7 <span style="color:var(--need)">every slot has finished</span>':"");
     box.innerHTML=blocks.map(function(b){
       const v=VENUES[b.venue]||VENUES.nick;
       const past=isToday && b.end<=nm;
@@ -586,12 +577,12 @@
       if(isToday && g.live[i].a<=nm && nm<g.live[i].b){ cur=g.live[i]; running=true; break; }
     }
     if(!cur) cur=g.live[0];
-    const n=cur?cur.n:0, st=playStyle(n);
+    const n=cur?cur.n:0;
     let pill,cls;
     if(n<MIN_PLAYERS){ pill=(MIN_PLAYERS-n)+" more needed"; cls="need"; }
     else if(n<FULL_PLAYERS){ pill="Game on"; cls="go"; }
     else { pill="Full court"; cls="full"; }
-    const styleTxt = n<MIN_PLAYERS ? "Not yet" : st.t;
+    const styleTxt = playStyle(n);
 
     let peakLine="";
     if(g.peak>n && g.live.length){
@@ -713,14 +704,18 @@
     db.collection("signups").where("date",">=",todayKey()).limit(MAX_SIGNUPS)
       .onSnapshot(function(snap){
         signups.clear();
-        snap.docs.forEach(function(d){ const v=d.data()||{};
-          if(typeof v.date==="string" && typeof v.startMin==="number") signups.set(d.id,v); });
+        snap.docs.forEach(function(d){ const v=cleanSignup(d.data()); if(v) signups.set(d.id,v); });
         loaded=true; queueRender();
       }, function(){
         el("warn").innerHTML='<div class="warn">The board stopped updating. Reload to reconnect.</div>';
       });
     goToDate(panelDate);
     sweep();
+    // The hour that counts as "right now" moves even when no data changes.
+    setInterval(function(){ render(); renderCourts(); }, 60000);
+    document.addEventListener("visibilitychange",function(){
+      if(!document.hidden){ render(); renderCourts(); buildPostForm(); }
+    });
   }
 
   function inAppBrowser(){
@@ -755,18 +750,23 @@
       });
   }
 
-  // Clear out signups from days gone by. Whoever opens the page first
-  // after six hours does the tidying; everyone else skips it.
+  // Clear out old signups. Whoever opens the page first after six hours does
+  // the tidying. The rules allow anyone to delete a signup made over a week ago.
   async function sweep(){
     try{
       const ref=db.doc("meta/sweep");
       const snap=await ref.get();
-      const last=(snap.exists && (snap.data()||{}).at) || 0;
+      const a=snap.exists?(snap.data()||{}).at:null;
+      const last=a&&a.toMillis ? a.toMillis() : (typeof a==="number" ? a : 0);
       if(Date.now()-last < 6*60*60*1000) return;
-      await ref.set({at:Date.now()});
+      await ref.set({at:firebase.firestore.FieldValue.serverTimestamp()});
+      const weekAgo=firebase.firestore.Timestamp.fromMillis(Date.now()-7*86400000);
       const cutoff=todayKey(new Date(Date.now()-3*86400000));
-      const q=await db.collection("signups").where("date","<",cutoff).limit(40).get();
-      for(const d of q.docs) await db.doc("signups/"+d.id).delete();
+      const q=await db.collection("signups").where("at","<",weekAgo).limit(40).get();
+      for(const d of q.docs){
+        const v=d.data()||{};
+        if(typeof v.date==="string" && v.date<cutoff) await d.ref.delete();
+      }
     }catch(e){}
   }
 
@@ -871,7 +871,7 @@
         date:panelDate, venue:b.venue, court:b.court, courtNum:b.courtNum,
         startMin:startMin, endMin:endMin,
         name:myName, party:1+Number(el("f-party").value||0),
-        ball:el("f-ball").value==="1", by:myId, at:Date.now()
+        ball:el("f-ball").value==="1", by:myId, at:firebase.firestore.FieldValue.serverTimestamp()
       });
       msg.textContent="You\u2019re on the board.";
       setTimeout(function(){ if(msg.textContent==="You\u2019re on the board.") msg.textContent=""; },3000);
